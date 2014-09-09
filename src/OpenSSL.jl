@@ -8,10 +8,10 @@ module OpenSSL
     import Base.ccall
     
     function init()
-      ccall((:OpenSSL_add_all_digests, OpenSSL.LIB), Void, ())
+      ccall((:OpenSSL_add_all_digests, OpenSSL.LIBCRYPTO), Void, ())
     end
     function cleanup()
-      ccall((:EVP_cleanup, OpenSSL.LIB), Void, ())
+      ccall((:EVP_cleanup, OpenSSL.LIBCRYPTO), Void, ())
     end
     
     function hexstring(hexes::Array{Uint8,1})
@@ -40,7 +40,7 @@ module OpenSSL
         # Convert the uval array to a string of hexes
         return hexstring(uval)
       finally
-        ccall((:EVP_MD_CTX_destroy, OpenSSL.LIB), Void, (Ptr{Void},), ctx)
+        ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       end
     end#/digest
     
