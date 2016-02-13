@@ -1,12 +1,11 @@
 module OpenSSL
-  import Base
 
+# select which library on your environment
 #  const LIBCRYPTO = "libcrypto"
   const LIBCRYPTO = "libeay32"
 
   module Digest
     import OpenSSL
-    import Base.ccall
 
     function init()
       ccall((:OpenSSL_add_all_digests, OpenSSL.LIBCRYPTO), Void, ())
