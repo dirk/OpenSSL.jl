@@ -6,14 +6,15 @@ fork of [OpenSSL](https://github.com/dirk/OpenSSL.jl)
 convert for julia 0.4-
 
 
-# before use it
+# how to use it
 
 ```julia
-# src/OpenSSL.jl
+import OpenSSL
 
-# select which library on your environment
-#  const LIBCRYPTO = "libcrypto"
-  const LIBCRYPTO = "libeay32"
+OpenSSL.Digest.init()
+s = OpenSSL.Digest.digest("SHA512", "test")
+m = OpenSSL.Digest.digest("MD5", "test")
+OpenSSL.Digest.cleanup()
 ```
 
 

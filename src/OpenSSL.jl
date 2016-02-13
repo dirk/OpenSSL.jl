@@ -1,8 +1,9 @@
+# OpenSSL
+
+VERSION >= v"0.4.0-dev+6521" && __precompile__()
 module OpenSSL
 
-# select which library on your environment
-#  const LIBCRYPTO = "libcrypto"
-  const LIBCRYPTO = "libeay32"
+  const LIBCRYPTO = ENV["OS"] == "Windows_NT" ? "libeay32" : "libcrypto"
 
   module Digest
     import OpenSSL
@@ -10,12 +11,9 @@ module OpenSSL
     function init()
       ccall((:OpenSSL_add_all_digests, OpenSSL.LIBCRYPTO), Void, ())
     end
+
     function cleanup()
       ccall((:EVP_cleanup, OpenSSL.LIBCRYPTO), Void, ())
-    end
-
-    function hexstring(hexes::Array{UInt8,1})
-      join([hex(h,2) for h in hexes], "")
     end
 
     function digest(name::AbstractString, data::AbstractString)
@@ -38,7 +36,7 @@ module OpenSSL
         ccall((:EVP_DigestFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ptr{UInt}), ctx, uval, C_NULL)
         # bytestring(uval)
         # Convert the uval array to a string of hexes
-        return hexstring(uval)
+        return bytes2hex(uval)
       finally
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       end
@@ -60,7 +58,7 @@ module OpenSSL
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
         nothing
       end
-    end#/digest
+    end#/digestinit
 
     function digestupdate(ctx,data::AbstractString)
       try
@@ -72,7 +70,7 @@ module OpenSSL
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
         nothing
       end
-    end#/digest
+    end#/digestupdate
 
     function digestfinalize(ctx)
       try
@@ -87,11 +85,11 @@ module OpenSSL
         ccall((:EVP_DigestFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ptr{UInt}), ctx, uval, C_NULL)
         # bytestring(uval)
         # Convert the uval array to a string of hexes
-        return hexstring(uval)
+        return bytes2hex(uval)
       finally
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       end
-    end#/digest
+    end#/digestfinalize
 
   end#/Digest
 
