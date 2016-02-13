@@ -16,7 +16,7 @@ module OpenSSL
       ccall((:EVP_cleanup, OpenSSL.LIBCRYPTO), Void, ())
     end
 
-    function digest(name::AbstractString, data::AbstractString)
+    function digest(name::AbstractString, bs::Array{UInt8,1})
       ctx = ccall((:EVP_MD_CTX_create, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
       try
         # Get the message digest struct
@@ -26,17 +26,14 @@ module OpenSSL
         end
         # Add the digest struct to the context
         ccall((:EVP_DigestInit_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ctx, md, C_NULL)
-        # Update the context with the input data
-        bs = bytestring(data)
+        # Update the context with the input data : bs
         ccall((:EVP_DigestUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, UInt), ctx, bs, length(bs))
         # Figure out the size of the output string for the digest
         size = ccall((:EVP_MD_size, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void},), md)
         uval = Array(UInt8, size)
         # Calculate the digest and store it in the uval array
         ccall((:EVP_DigestFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ptr{UInt}), ctx, uval, C_NULL)
-        # bytestring(uval)
-        # Convert the uval array to a string of hexes
-        return bytes2hex(uval)
+        return uval
       finally
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       end
@@ -60,10 +57,9 @@ module OpenSSL
       end
     end#/digestinit
 
-    function digestupdate(ctx,data::AbstractString)
+    function digestupdate(ctx, bs::Array{UInt8,1})
       try
-        # Update the context with the input data
-        bs = bytestring(data)
+        # Update the context with the input data : bs
         ccall((:EVP_DigestUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, UInt), ctx, bs, length(bs))
         ctx
       catch
@@ -83,9 +79,7 @@ module OpenSSL
         uval = Array(UInt8, size)
         # Calculate the digest and store it in the uval array
         ccall((:EVP_DigestFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ptr{UInt}), ctx, uval, C_NULL)
-        # bytestring(uval)
-        # Convert the uval array to a string of hexes
-        return bytes2hex(uval)
+        return uval
       finally
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       end
