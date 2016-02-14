@@ -120,13 +120,14 @@ module OpenSSL
         if(algorithm != :EVP_aes_256_cbc)
           error("Not support cipher algorithm $name")
         end
+        # ec = ccall((algorithm, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
         ec = ccall((:EVP_aes_256_cbc, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
         if(ec == C_NULL)
           error("Unknown cipher algorithm $name")
         end
         ccall((:EVP_EncryptInit_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{UInt8}, Ptr{UInt8}), ctx, ec, C_NULL, key, iv)
 
-        tmpenc = Array{UInt8,1}([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+        tmpenc = Array(UInt8, 16)
         tmplen = UInt(0)
         blksize = ccall((:EVP_CIPHER_CTX_block_size, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void},), ctx)
 
