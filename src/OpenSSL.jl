@@ -110,34 +110,61 @@ module OpenSSL
       ccall((:EVP_cleanup, OpenSSL.LIBCRYPTO), Void, ())
     end
 
-    function encrypt(name::AbstractString, key::Array{UInt8,1}, iv::Array{UInt8,1}, plain::Array{UInt8,1})
+    function get_EVP_CIPHER(name::AbstractString)
+      # ec = ccall((:EVP_get_cipherbyname, OpenSSL.LIBCRYPTO), Ptr{Void}, (Ptr{UInt8},), name)
+      algorithm = Symbol("EVP_"*name)
+      if(algorithm != :EVP_aes_256_cbc)
+        error("Not support cipher algorithm $name")
+      end
+      # ec = ccall((algorithm, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
+      ec = ccall((:EVP_aes_256_cbc, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
+      if(ec == C_NULL)
+        error("Unknown cipher algorithm $name")
+      end
+      return ec
+    end
+
+    function encrypt(name::AbstractString, key::Array{UInt8,1}, iv::Array{UInt8,1}, plain::Array{UInt8,1}, selfpad::Bool=false)
       ctx = ccall((:EVP_CIPHER_CTX_new, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
       ccall((:EVP_CIPHER_CTX_init, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       try
-        enc = Array{UInt8,1}([])
-        # ec = ccall((:EVP_get_cipherbyname, OpenSSL.LIBCRYPTO), Ptr{Void}, (Ptr{UInt8},), name)
-        algorithm = Symbol("EVP_"*name)
-        if(algorithm != :EVP_aes_256_cbc)
-          error("Not support cipher algorithm $name")
-        end
-        # ec = ccall((algorithm, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
-        ec = ccall((:EVP_aes_256_cbc, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
-        if(ec == C_NULL)
-          error("Unknown cipher algorithm $name")
-        end
+        ec = get_EVP_CIPHER(name)
         ccall((:EVP_EncryptInit_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{UInt8}, Ptr{UInt8}), ctx, ec, C_NULL, key, iv)
 
-        tmpenc = Array(UInt8, 16)
-        tmplen = UInt(0)
+        # :EVP_CIPHER_CTX_block_size must be after :EVP_EncryptInit_ex
         blksize = ccall((:EVP_CIPHER_CTX_block_size, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void},), ctx)
+        if(selfpad)
+          ccall((:EVP_CIPHER_CTX_set_padding, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void}, UInt), ctx, 0) # disable
+        end
+        remain = length(plain) % blksize
+        padlen = blksize - remain
+        enclen = length(plain) + padlen
+        enc = Array(UInt8, enclen)
+        outlen = UInt(1) # start position = 1
+        tmpenc = Array(UInt8, blksize)
+        tmplen = Ref{Cint}(0)
 
-        ccall((:EVP_EncryptUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ptr{UInt}, Ptr{UInt8}, UInt), ctx, tmpenc, &tmplen, plain, blksize)
-        enc = [enc; tmpenc]
+        for i in 1:div(length(plain), blksize)
+          ccall((:EVP_EncryptUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}, Ptr{UInt8}, UInt), ctx, tmpenc, tmplen, plain[outlen:outlen+blksize-1], blksize)
+          if(tmplen[] > 0) enc[outlen:outlen+blksize-1] = tmpenc[1:blksize] end
+          outlen += tmplen[]
+        end
 
-        remain = 0
-        if(length(plain) > 16) # if(remain > 0)
-          ccall((:EVP_EncryptFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ptr{UInt}), ctx, tmpenc, &tmplen)
-          enc = [enc; tmpenc]
+        if(remain > 0)
+          ccall((:EVP_EncryptUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}, Ptr{UInt8}, UInt), ctx, tmpenc, tmplen, plain[outlen:outlen+remain-1], remain)
+          if(tmplen[] > 0) enc[outlen:outlen+remain-1] = tmpenc[1:remain] end
+          outlen += tmplen[]
+        end
+
+        if(selfpad && padlen != 0) # no use (padlen > 0), UInt is everytime > 0
+          # skip
+          # outlen += tmplen[]
+        end
+
+        if(!selfpad)
+          ccall((:EVP_EncryptFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}), ctx, tmpenc, tmplen)
+          if(tmplen[] > 0) enc[outlen:outlen+blksize-1] = tmpenc[1:blksize] end
+          outlen += tmplen[]
         end
 
         ccall((:EVP_CIPHER_CTX_cleanup, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
@@ -147,11 +174,40 @@ module OpenSSL
       end
     end#/encrypt
 
-    function decrypt(name::AbstractString, key::Array{UInt8,1}, iv::Array{UInt8,1}, bs::Array{UInt8,1})
-      ctx = ccall((:EVP_CIPHER_CTX_create, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
+    function decrypt(name::AbstractString, key::Array{UInt8,1}, iv::Array{UInt8,1}, cipher::Array{UInt8,1}, selfpad::Bool=false)
+      ctx = ccall((:EVP_CIPHER_CTX_new, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
+      ccall((:EVP_CIPHER_CTX_init, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       try
+        ec = get_EVP_CIPHER(name)
+        ccall((:EVP_DecryptInit_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Ptr{UInt8}, Ptr{UInt8}), ctx, ec, C_NULL, key, iv)
+
+        # :EVP_CIPHER_CTX_block_size must be after :EVP_DecryptInit_ex
+        blksize = ccall((:EVP_CIPHER_CTX_block_size, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void},), ctx)
+        if(selfpad)
+          ccall((:EVP_CIPHER_CTX_set_padding, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void}, UInt), ctx, 0) # disable
+        end
+        declen = length(cipher) # trim padlen later
+        dec = Array(UInt8, declen)
+        outlen = UInt(1) # start position = 1
+        tmpdec = Array(UInt8, blksize)
+        tmplen = Ref{Cint}(0)
+
+        for i in 1:div(length(cipher), blksize)
+          ccall((:EVP_DecryptUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}, Ptr{UInt8}, UInt), ctx, tmpdec, tmplen, cipher[outlen:outlen+blksize-1], blksize)
+          if(tmplen[] > 0) dec[outlen:outlen+blksize-1] = tmpdec[1:blksize] end
+          outlen += tmplen[]
+        end
+
+        if(!selfpad)
+          ccall((:EVP_DecryptFinal_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}), ctx, tmpdec, tmplen)
+          if(tmplen[] > 0) dec[outlen:outlen+blksize-1] = tmpdec[1:blksize] end
+          outlen += tmplen[]
+        end
+
+        ccall((:EVP_CIPHER_CTX_cleanup, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
+        return selfpad ? dec[1:declen-dec[declen]] : dec[1:outlen-1]
       finally
-        ccall((:EVP_CIPHER_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
+        ccall((:EVP_CIPHER_CTX_free, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
       end
     end#/decrypt
 
