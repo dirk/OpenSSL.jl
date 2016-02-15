@@ -3,18 +3,14 @@ using Base.Test
 
 include("data.jl")
 
-function string2bytes(s::AbstractString)
-  return read(IOBuffer(s), UInt8, length(s))
-end
-
 @test isdefined(:OpenSSL) == true
 OpenSSL.init()
 
-s = OpenSSL.Digest.digest("SHA512", string2bytes("test"))
+s = OpenSSL.Digest.digest("SHA512", "test".data)
 println(s)
 @test s == sha512_of_test
 
-m = OpenSSL.Digest.digest("MD5", string2bytes("test"))
+m = OpenSSL.Digest.digest("MD5", "test".data)
 println(m)
 @test m == md5_of_test
 
@@ -28,13 +24,13 @@ key32 = hex2bytes("e299ff9d8e4831f07e5323913c53e5f0"*
 iv16 = hex2bytes("7c7ed9434ddb9c2d1e1fcc38b4bf4667")
 
 ### selfpad=true
-#plainshort = string2bytes("Message\t\t\t\t\t\t\t\t\t")
-#plainlong = string2bytes("Message\t\t\t\t\t\t\t\t\t"*
-#  "\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10")
+#plainshort = "Message\t\t\t\t\t\t\t\t\t".data
+#plainlong = "Message\t\t\t\t\t\t\t\t\t"*
+#  "\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10".data
 
 ### selfpad=false
-plainshort = string2bytes("Message")
-plainlong = string2bytes("Message\t\t\t\t\t\t\t\t\t")
+plainshort = "Message".data
+plainlong = "Message\t\t\t\t\t\t\t\t\t".data
 
 es = OpenSSL.Cipher.encrypt("aes_256_cbc", key32, iv16, plainshort)
 println(es)
