@@ -3,7 +3,7 @@
 VERSION >= v"0.4.0-dev+6521" && __precompile__()
 module OpenSSL
 
-  const LIBCRYPTO = ENV["OS"] == "Windows_NT" ? "libeay32" : "libcrypto"
+  const LIBCRYPTO = @windows ? "libeay32" : "libcrypto"
 
   function init()
     # ccall((:OpenSSL_add_all_digests, OpenSSL.LIBCRYPTO), Void, ())
