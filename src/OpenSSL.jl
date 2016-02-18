@@ -39,7 +39,7 @@ module OpenSSL
         # Add the digest struct to the context
         ccall((:EVP_DigestInit_ex, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ctx, md, C_NULL)
         # Update the context with the input data : bs
-        ccall((:EVP_DigestUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, UInt), ctx, bs, length(bs))
+        ccall((:EVP_DigestUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, UInt), ctx, bs, sizeof(bs))
         # Figure out the size of the output string for the digest
         size = ccall((:EVP_MD_size, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void},), md)
         uval = Array(UInt8, size)
@@ -72,7 +72,7 @@ module OpenSSL
     function digestupdate(ctx, bs::Array{UInt8,1})
       try
         # Update the context with the input data : bs
-        ccall((:EVP_DigestUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, UInt), ctx, bs, length(bs))
+        ccall((:EVP_DigestUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, UInt), ctx, bs, sizeof(bs))
         ctx
       catch
         ccall((:EVP_MD_CTX_destroy, OpenSSL.LIBCRYPTO), Void, (Ptr{Void},), ctx)
@@ -136,15 +136,15 @@ module OpenSSL
         if(selfpad)
           ccall((:EVP_CIPHER_CTX_set_padding, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void}, UInt), ctx, 0) # disable
         end
-        remain = length(plain) % blksize
+        remain = sizeof(plain) % blksize
         padlen = blksize - remain
-        enclen = length(plain) + padlen
+        enclen = sizeof(plain) + padlen
         enc = Array(UInt8, enclen)
         outlen = UInt(1) # start position = 1
         tmpenc = Array(UInt8, blksize)
         tmplen = Ref{Cint}(0)
 
-        for i in 1:div(length(plain), blksize)
+        for i in 1:div(sizeof(plain), blksize)
           ccall((:EVP_EncryptUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}, Ptr{UInt8}, UInt), ctx, tmpenc, tmplen, plain[outlen:outlen+blksize-1], blksize)
           if(tmplen[] > 0) enc[outlen:outlen+blksize-1] = tmpenc[1:blksize] end
           outlen += tmplen[]
@@ -186,13 +186,13 @@ module OpenSSL
         if(selfpad)
           ccall((:EVP_CIPHER_CTX_set_padding, OpenSSL.LIBCRYPTO), UInt, (Ptr{Void}, UInt), ctx, 0) # disable
         end
-        declen = length(cipher) # trim padlen later
+        declen = sizeof(cipher) # trim padlen later
         dec = Array(UInt8, declen)
         outlen = UInt(1) # start position = 1
         tmpdec = Array(UInt8, blksize)
         tmplen = Ref{Cint}(0)
 
-        for i in 1:div(length(cipher), blksize)
+        for i in 1:div(sizeof(cipher), blksize)
           ccall((:EVP_DecryptUpdate, OpenSSL.LIBCRYPTO), Void, (Ptr{Void}, Ptr{UInt8}, Ref{Cint}, Ptr{UInt8}, UInt), ctx, tmpdec, tmplen, cipher[outlen:outlen+blksize-1], blksize)
           if(tmplen[] > 0) dec[outlen:outlen+blksize-1] = tmpdec[1:blksize] end
           outlen += tmplen[]
