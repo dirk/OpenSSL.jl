@@ -112,12 +112,9 @@ module OpenSSL
 
     function get_EVP_CIPHER(name::AbstractString)
       # ec = ccall((:EVP_get_cipherbyname, OpenSSL.LIBCRYPTO), Ptr{Void}, (Ptr{UInt8},), name)
-      algorithm = Symbol("EVP_"*name)
-      if(algorithm != :EVP_aes_256_cbc)
-        error("Not support cipher algorithm $name")
-      end
-      # ec = ccall((algorithm, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
-      ec = ccall((:EVP_aes_256_cbc, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
+      algorithm = "ccall((:EVP_$(name), OpenSSL.LIBCRYPTO), Ptr{Void}, ())"
+      ec = eval(parse(algorithm))
+      # ec = ccall((:EVP_aes_256_cbc, OpenSSL.LIBCRYPTO), Ptr{Void}, ())
       if(ec == C_NULL)
         error("Unknown cipher algorithm $name")
       end
